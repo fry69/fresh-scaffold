@@ -69,9 +69,11 @@ async function runTests(): Promise<void> {
       console.log("❌ Some tests failed!");
       Deno.exit(1);
     }
-
   } catch (error) {
-    console.error("❌ Error running tests:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "❌ Error running tests:",
+      error instanceof Error ? error.message : String(error),
+    );
     Deno.exit(1);
   } finally {
     // Clean up server process

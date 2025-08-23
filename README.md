@@ -18,20 +18,25 @@ This will watch the project directory and restart as necessary.
 
 ## Testing
 
-This project includes comprehensive end-to-end tests using [Astral](https://github.com/lino-levan/astral), a Deno-native browser automation library.
+This project includes comprehensive end-to-end tests using
+[Astral](https://github.com/lino-levan/astral), a Deno-native browser automation
+library.
 
 ### Running Tests
 
 **Option 1: Manual testing (requires server running)**
+
 1. Start the development server: `deno task dev`
 2. In another terminal, run: `deno task test:e2e`
 
 **Option 2: Automated testing (handles server lifecycle)**
+
 ```bash
 deno task test:full
 ```
 
 **Option 3: Run all tests in the tests directory**
+
 ```bash
 deno task test
 ```
@@ -39,6 +44,7 @@ deno task test
 ### Test Coverage
 
 The E2E tests cover:
+
 - Page loading and initial state
 - Counter increment/decrement functionality
 - Dynamic page title updates

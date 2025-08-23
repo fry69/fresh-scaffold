@@ -17,7 +17,12 @@ export default function Counter({ count }: CounterProps) {
 
   return (
     <div class="flex gap-8 py-6">
-      <Button id="decrement" onClick={() => count.value = Math.max(1, count.value - 1)}>-1</Button>
+      <Button
+        id="decrement"
+        onClick={() => count.value = Math.max(1, count.value - 1)}
+      >
+        -1
+      </Button>
       <p class="text-3xl tabular-nums">{count.value}</p>
       <Button id="increment" onClick={() => count.value += 1}>+1</Button>
     </div>

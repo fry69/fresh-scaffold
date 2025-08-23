@@ -118,25 +118,28 @@ Deno.test("Fresh Scaffold E2E Integration Test", async (t) => {
     assertEquals(title, "5 Fresh Counters");
   });
 
-  await t.step("Should have correct button styling and hover effects", async () => {
-    const incrementButton = await page.$("#increment");
+  await t.step(
+    "Should have correct button styling and hover effects",
+    async () => {
+      const incrementButton = await page.$("#increment");
 
-    // Check button classes
-    const buttonClasses = await incrementButton!.getAttribute("class");
-    assertEquals(buttonClasses?.includes("px-2"), true);
-    assertEquals(buttonClasses?.includes("py-1"), true);
-    assertEquals(buttonClasses?.includes("border-gray-500"), true);
-    assertEquals(buttonClasses?.includes("border-2"), true);
-    assertEquals(buttonClasses?.includes("rounded-sm"), true);
+      // Check button classes
+      const buttonClasses = await incrementButton!.getAttribute("class");
+      assertEquals(buttonClasses?.includes("px-2"), true);
+      assertEquals(buttonClasses?.includes("py-1"), true);
+      assertEquals(buttonClasses?.includes("border-gray-500"), true);
+      assertEquals(buttonClasses?.includes("border-2"), true);
+      assertEquals(buttonClasses?.includes("rounded-sm"), true);
 
-    // Check button text
-    const buttonText = await incrementButton!.innerText();
-    assertEquals(buttonText, "+1");
+      // Check button text
+      const buttonText = await incrementButton!.innerText();
+      assertEquals(buttonText, "+1");
 
-    const decrementButton = await page.$("#decrement");
-    const decrementText = await decrementButton!.innerText();
-    assertEquals(decrementText, "-1");
-  });
+      const decrementButton = await page.$("#decrement");
+      const decrementText = await decrementButton!.innerText();
+      assertEquals(decrementText, "-1");
+    },
+  );
 
   await t.step("Should have correct page structure and content", async () => {
     // Check for the instruction paragraph
