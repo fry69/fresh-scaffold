@@ -77,9 +77,11 @@ async function runTests(): Promise<void> {
     } else {
       console.log("❌ Some tests failed!");
     }
-
   } catch (error) {
-    console.error("❌ Error running tests:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "❌ Error running tests:",
+      error instanceof Error ? error.message : String(error),
+    );
   } finally {
     // Robust cleanup of server process
     await cleanupServer(serverProcess);
@@ -118,9 +120,11 @@ async function cleanupServer(serverProcess: Deno.ChildProcess): Promise<void> {
     } catch {
       // Process already terminated
     }
-
   } catch (error) {
-    console.warn("⚠️  Warning during server cleanup:", error instanceof Error ? error.message : String(error));
+    console.warn(
+      "⚠️  Warning during server cleanup:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   // Additional cleanup: kill any remaining deno processes on the port

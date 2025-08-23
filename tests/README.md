@@ -25,15 +25,18 @@ The application should be running at `http://localhost:8000`.
 ### Run the E2E tests
 
 **Option 1: Manual testing (requires server running)**
+
 1. Start the development server: `deno task dev`
 2. In another terminal, run: `deno task test:e2e`
 
 **Option 2: Automated testing (handles server lifecycle)**
+
 ```bash
 deno task test:full
 ```
 
 This option automatically:
+
 - Starts the development server
 - Waits for it to be ready
 - Runs the E2E tests
@@ -42,6 +45,7 @@ This option automatically:
 - Exits with appropriate status codes
 
 **Option 3: Run all tests in the tests directory**
+
 ```bash
 deno task test
 
