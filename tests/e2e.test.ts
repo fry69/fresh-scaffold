@@ -5,7 +5,13 @@ const BASE_URL = "http://localhost:8000";
 
 Deno.test("Fresh Scaffold E2E Integration Test", async (t) => {
   // Launch browser for testing
-  await using browser = await launch({ headless: true });
+  // Use --no-sandbox flag in CI environments
+  const isCI = Deno.env.get("CI") === "true" || Deno.env.get("GITHUB_ACTIONS") === "true";
+  const launchOptions = isCI
+    ? { headless: true, args: ["--no-sandbox"] }
+    : { headless: true };
+
+  await using browser = await launch(launchOptions);
   await using page = await browser.newPage();
 
   await t.step("Should load the home page correctly", async () => {
