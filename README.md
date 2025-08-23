@@ -52,6 +52,7 @@ The E2E tests cover:
 - Boundary conditions (counter minimum value)
 - UI element verification
 - Content and styling validation
+- API route functionality (`/api/[name]` endpoint)
 
 For more details, see the [tests documentation](./tests/README.md).
 

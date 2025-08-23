@@ -24,14 +24,26 @@ The application should be running at `http://localhost:8000`.
 
 ### Run the E2E tests
 
-In a separate terminal, run the end-to-end tests:
+**Option 1: Manual testing (requires server running)**
+1. Start the development server: `deno task dev`
+2. In another terminal, run: `deno task test:e2e`
 
+**Option 2: Automated testing (handles server lifecycle)**
 ```bash
-# Run all tests
-deno task test
+deno task test:full
+```
 
-# Run only the E2E tests
-deno task test:e2e
+This option automatically:
+- Starts the development server
+- Waits for it to be ready
+- Runs the E2E tests
+- Performs robust cleanup (graceful termination, force-kill if needed)
+- Handles interruption signals (Ctrl+C)
+- Exits with appropriate status codes
+
+**Option 3: Run all tests in the tests directory**
+```bash
+deno task test
 
 # Run tests with verbose output
 deno test -A tests/e2e.test.ts --verbose
@@ -50,6 +62,14 @@ The E2E test (`e2e.test.ts`) covers:
 5. **Boundary Conditions**: Ensures counter cannot go below 1
 6. **UI Elements**: Verifies button styling and page structure
 7. **Content Verification**: Checks for proper text content and code elements
+8. **API Route Testing**: Tests the `/api/[name]` endpoint with various inputs:
+   - Basic name capitalization (john → Hello, John!)
+   - Already capitalized names (MARY → Hello, MARY!)
+   - Names starting with numbers (123test → Hello, 123test!)
+   - Single characters (a → Hello, A!)
+   - Special characters (test-name → Hello, Test-name!)
+   - Underscored names (test_name → Hello, Test_name!)
+   - Numeric strings (123 → Hello, 123!)
 
 ## Technology
 

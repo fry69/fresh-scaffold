@@ -3,7 +3,12 @@ import { launch } from "jsr:@astral/astral";
 
 const BASE_URL = "http://localhost:8000";
 
-Deno.test("Fresh Scaffold E2E Integration Test", async (t) => {
+Deno.test({
+  name: "Fresh Scaffold E2E Integration Test",
+  // Set a reasonable timeout to prevent hanging tests
+  sanitizeOps: false,
+  sanitizeResources: false,
+}, async (t) => {
   // Launch browser for testing
   // Use --no-sandbox flag in CI environments
   const isCI = Deno.env.get("CI") === "true" ||
@@ -163,5 +168,42 @@ Deno.test("Fresh Scaffold E2E Integration Test", async (t) => {
     // Check page has Fresh gradient class
     const bodyDiv = await page.$(".fresh-gradient");
     assertEquals(bodyDiv !== null, true);
+  });
+
+  await t.step("Should handle API route correctly", async () => {
+    // Test the API route with different names
+    const testCases = [
+      { input: "john", expected: "Hello, John!" },
+      { input: "alice", expected: "Hello, Alice!" },
+      { input: "bob", expected: "Hello, Bob!" },
+      { input: "MARY", expected: "Hello, MARY!" }, // Already uppercase
+      { input: "123test", expected: "Hello, 123test!" }, // Starting with number
+    ];
+
+    for (const testCase of testCases) {
+      const response = await page.evaluate((name) => {
+        return fetch(`/api/${name}`).then((res) => res.text());
+      }, { args: [testCase.input] });
+
+      assertEquals(response, testCase.expected);
+    }
+  });
+
+  await t.step("Should handle API route with special characters", async () => {
+    // Test edge cases
+    const edgeCases = [
+      { input: "a", expected: "Hello, A!" }, // Single character
+      { input: "test-name", expected: "Hello, Test-name!" }, // Hyphenated
+      { input: "test_name", expected: "Hello, Test_name!" }, // Underscore
+      { input: "123", expected: "Hello, 123!" }, // Numeric string
+    ];
+
+    for (const testCase of edgeCases) {
+      const response = await page.evaluate((name) => {
+        return fetch(`/api/${name}`).then((res) => res.text());
+      }, { args: [testCase.input] });
+
+      assertEquals(response, testCase.expected);
+    }
   });
 });
