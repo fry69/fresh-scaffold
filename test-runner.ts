@@ -42,9 +42,9 @@ async function runTests(): Promise<void> {
   console.log("🚀 Starting Fresh Scaffold test suite");
 
   // Start the development server
-  console.log("📦 Starting Fresh development server...");
+  console.log("📦 Starting Fresh production server...");
   const serverProcess = new Deno.Command("deno", {
-    args: ["task", "dev"],
+    args: ["task", "serve"],
     stdout: "piped",
     stderr: "piped",
   }).spawn();

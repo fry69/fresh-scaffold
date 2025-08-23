@@ -5,6 +5,7 @@
     "dev": "deno run -A --watch=static/,routes/ dev.ts",
     "build": "deno run -A dev.ts build",
     "start": "deno serve -A _fresh/server.js",
+    "serve": "deno task build && deno task start",
     "update": "deno run -A -r jsr:@fresh/update .",
     "test": "deno test -A tests/",
     "test:e2e": "deno test -A tests/e2e.test.ts",
