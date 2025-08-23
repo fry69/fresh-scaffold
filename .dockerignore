@@ -1,0 +1,9 @@
+_fresh
+.git
+.github
+.vscode
+node_modules
+tests
+.env.example
+.gitignore
+**/*.md

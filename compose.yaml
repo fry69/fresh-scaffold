@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        GIT_REVISION: ${GIT_REVISION}
+    image: ${IMAGE_NAME}:latest
+
+    # Working directory inside the container
+    working_dir: /app
+
+    # Volume mounts
+    # volumes:
+    #   - data_volume:/app/data
+    # - .:/app # Mount current directory to /app
+    # - ${HOME}/.deno:/deno-dir # Mount Deno cache directory
+
+    # Port mappings (host:container)
+    ports:
+      - "${EXTERNAL_PORT}:8000"
+      # - "127.0.0.1:${EXTERNAL_PORT}:8000" # Bind to localhost only
+
+    # Environment variables
+    environment:
+      - BUILD_STRING
