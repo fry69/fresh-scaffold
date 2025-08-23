@@ -9,7 +9,7 @@
     "update": "deno run -A -r jsr:@fresh/update .",
     "test": "deno test -A tests/",
     "test:e2e": "deno test -A tests/e2e.test.ts",
-    "test:full": "deno run -A test-runner.ts"
+    "test:full": "deno run -A tests/test-runner.ts"
   },
   "lint": {
     "rules": {
