@@ -41,7 +41,9 @@ const TASK_CMD = parseCmd(TASK_CMD_RAW);
 const TEST_CMD = parseCmd(TEST_CMD_RAW);
 
 function spawnChild(cmd: string[], inherit = true): Deno.ChildProcess {
-  console.log(`> spawning: ${cmd.map((s) => (s.includes(" ") ? `"${s}"` : s)).join(" ")}`);
+  console.log(
+    `> spawning: ${cmd.map((s) => (s.includes(" ") ? `"${s}"` : s)).join(" ")}`,
+  );
   return new Deno.Command(cmd[0], {
     args: cmd.slice(1),
     stdout: inherit ? "inherit" : "piped",
@@ -56,7 +58,9 @@ async function runCommandAndWait(cmd: string[]): Promise<Deno.CommandStatus> {
 
 async function isReady(port: number, path = "/"): Promise<boolean> {
   try {
-    const res = await fetch(`http://127.0.0.1:${port}${path}`, { method: "HEAD" });
+    const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: "HEAD",
+    });
     return res.ok;
   } catch {
     return false;
@@ -74,7 +78,9 @@ async function waitForServer(port: number, timeoutMs: number, path = "/") {
     const wait = Math.min(200 * Math.pow(1.25, attempt), 2000);
     await new Promise((r) => setTimeout(r, wait));
     attempt++;
-    if (attempt % 5 === 0) console.log(`⏳ waiting for server (attempt ${attempt})...`);
+    if (attempt % 5 === 0) {
+      console.log(`⏳ waiting for server (attempt ${attempt})...`);
+    }
   }
   throw new Error(`Server not ready after ${timeoutMs}ms`);
 }
@@ -90,7 +96,9 @@ async function cleanup(exitCode = 1) {
 
   if (serverChild) {
     try {
-      console.log(`🛑 Stopping server (pid=${serverChild.pid}) with SIGTERM...`);
+      console.log(
+        `🛑 Stopping server (pid=${serverChild.pid}) with SIGTERM...`,
+      );
       try {
         serverChild.kill("SIGTERM");
       } catch {
@@ -98,7 +106,10 @@ async function cleanup(exitCode = 1) {
       }
 
       // wait up to 5s for graceful shutdown
-      await Promise.race([serverChild.status, new Promise((r) => setTimeout(r, 5000))]);
+      await Promise.race([
+        serverChild.status,
+        new Promise((r) => setTimeout(r, 5000)),
+      ]);
 
       // if still running, force kill by pid
       try {
@@ -170,7 +181,10 @@ async function main() {
     try {
       await waitForServer(FRESH_DEV_PORT, SERVER_TIMEOUT_MS, HEALTH_PATH);
     } catch (err) {
-      console.error("❌ Server did not become ready:", err instanceof Error ? err.message : err);
+      console.error(
+        "❌ Server did not become ready:",
+        err instanceof Error ? err.message : err,
+      );
       return cleanup(1);
     }
 

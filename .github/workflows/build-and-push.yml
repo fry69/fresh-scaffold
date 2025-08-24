@@ -1,88 +1,139 @@
-name: Build and Push Container Image
+name: Build & Publish (tags → GHCR)
 
+# Trigger only on tag pushes that look like v1.2.3 (or manual run)
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+    tags:
+      - "v*" # build & push only when a tag is pushed (e.g. v1.2.3)
+  workflow_dispatch: # allow manual runs (optional)
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository }} # results in ghcr.io/owner/repo
+  CONTAINERFILE: ./Containerfile
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  # if you later add a release-update step, you'll need 'contents: write' or a PAT
 
 jobs:
   # First run the CI tests
   test:
     uses: ./.github/workflows/ci.yml
 
-  build-and-push:
+  build-and-publish:
     runs-on: ubuntu-latest
     needs: test
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Optional but recommended for multi-arch
+      # - name: Set up QEMU (emulation for other archs)
+      #   uses: docker/setup-qemu-action@v2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract image metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
+            type=ref,event=tag           # will include the git tag (vX.Y.Z)
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=sha-        # fallback: sha-abcdef
+          # labels also generated (OCIs common labels)
 
       - name: Get git revision
         id: git
         run: echo "revision=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Generate build string
-        id: build
-        run: echo "string=Build $(date '+%Y%m%d-%H%M%S') (git $(git rev-parse --short HEAD))" >> $GITHUB_OUTPUT
+        id: buildinfo
+        run: |
+          echo "build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (multi-arch)
         id: build-and-push
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Containerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          file: ${{ env.CONTAINERFILE }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_REVISION=${{ steps.git.outputs.revision }}
+            BUILD_STRING=${{ steps.buildinfo.outputs.build_time }}-${{ steps.buildinfo.outputs.short_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
-      - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
+      - name: Generate build attestation (provenance)
+        id: attest
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build-and-push.outputs.digest }}
           push-to-registry: true
+
+      - name: Create Markdown build summary (job summary)
+        id: write-summary
+        run: |
+          # Compose summary variables
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          TAGS="${{ steps.meta.outputs.tags }}"
+          DIGEST="${{ steps.build-and-push.outputs.digest }}"
+          BUILD_TIME="${{ steps.buildinfo.outputs.build_time }}"
+          SHORT_SHA="${{ steps.buildinfo.outputs.short_sha }}"
+          LABELS="${{ steps.meta.outputs.labels }}"
+
+          # Write a friendly markdown summary to the GitHub Actions job summary
+          # ($GITHUB_STEP_SUMMARY is provided by the runner; markdown here will render in Actions UI)
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## :package: Container build summary
+
+          **Image:** \`${IMAGE}\`
+          **Tags pushed:** ${TAGS}
+          **Floating tag (alias):** \`${IMAGE}:latest\`
+          **Digest:** \`${DIGEST}\`
+          **Built at (UTC):** ${BUILD_TIME}
+          **Commit:** \`${SHORT_SHA}\`
+
+          ### Labels (generated)
+          \`\`\`json
+          ${LABELS}
+          \`\`\`
+
+          ### Notes
+          - Attestation: ${ATTESTION:-pushed (see attestation step)}
+          - Use the digest (\`ghcr.io/owner/repo@sha256:...\`) to pin deployments.
+          EOF
+
+      - name: Upload summary as artifact (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-build-summary
+          path: $GITHUB_STEP_SUMMARY
