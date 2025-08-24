@@ -18,6 +18,7 @@ permissions:
   contents: read
   packages: write
   id-token: write
+  attestations: write
   # if you later add a release-update step, you'll need 'contents: write' or a PAT
 
 jobs:
