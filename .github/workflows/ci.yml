@@ -3,6 +3,14 @@ name: CI Tests
 on:
   workflow_call:
 
+env:
+  FRESH_PORT: 8000
+  SERVER_TIMEOUT: 30
+  HEALTH_PATH: /
+  BUILD_CMD: deno run -A dev.ts build
+  SERVE_CMD: deno serve -A _fresh/server.js
+  TEST_CMD: deno task test:e2e
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,16 +35,19 @@ jobs:
       - name: Cache dependencies
         run: deno cache dev.ts
 
+      - name: Build project
+        run: ${{ env.BUILD_CMD }}
+
       - name: Start Fresh server in background
-        run: deno task dev &
+        run: ${{ env.SERVE_CMD }} &
 
       - name: Wait for server to be ready
         run: |
-          timeout 30 bash -c 'until curl -s http://localhost:8000 > /dev/null; do sleep 1; done'
+          timeout ${{ env.SERVER_TIMEOUT }} bash -c 'until curl -s http://localhost:${{ env.FRESH_PORT }}${{ env.HEALTH_PATH }} > /dev/null; do sleep 1; done'
           echo "Server is ready"
 
       - name: Run E2E tests
-        run: deno task test:e2e
+        run: ${{ env.TEST_CMD }}
 
       - name: Stop server
-        run: pkill -f "deno task dev" || true
+        run: pkill -f "deno" || true
