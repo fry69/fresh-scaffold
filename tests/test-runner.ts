@@ -1,167 +1,197 @@
 #!/usr/bin/env -S deno run -A
 
 /**
- * Test runner script for Fresh Scaffold application
+ * Flexible E2E runner for Fresh + Deno
  *
- * This script starts the Fresh development server, waits for it to be ready,
- * runs the E2E tests, and then cleans up the server process.
+ * Modes:
+ *  - Task mode (default): runs "deno task serve" then "deno task test:e2e"
+ *  - Direct build+serve: set BUILD_CMD and SERVE_CMD (space-separated) to run build then serve directly
+ *
+ * Config via env vars:
+ *  - BUILD_CMD (e.g. "deno run -A dev.ts build")
+ *  - SERVE_CMD (e.g. "deno serve -A _fresh/server.js")
+ *  - TASK_CMD (default "deno task serve")
+ *  - TEST_CMD (default "deno task test:e2e")
+ *  - FRESH_DEV_PORT (default 8000)
+ *  - SERVER_TIMEOUT_MS (default 30000)
+ *  - HEALTH_PATH (default "/")
  */
 
-import { delay } from "@std/async/delay";
+const env = (k: string, d = "") => Deno.env.get(k) ?? d;
 
-const FRESH_DEV_PORT = 8000;
-const SERVER_TIMEOUT = 30000; // 30 seconds
+const FRESH_DEV_PORT = Number(env("FRESH_DEV_PORT", "8000"));
+const SERVER_TIMEOUT_MS = Number(env("SERVER_TIMEOUT_MS", "30000"));
+const HEALTH_PATH = env("HEALTH_PATH", "/");
 
-async function isServerReady(port: number): Promise<boolean> {
+const BUILD_CMD_RAW = env("BUILD_CMD", "deno run -A dev.ts build").trim();
+const SERVE_CMD_RAW = env("SERVE_CMD", "deno serve -A _fresh/server.js").trim();
+const TASK_CMD_RAW = env("TASK_CMD", "");
+const TEST_CMD_RAW = env("TEST_CMD", "deno task test:e2e");
+
+function parseCmd(raw: string): string[] {
+  // simple split on spaces — if you need quoted args, set mode to task and configure tasks
+  return raw.split(/\s+/).filter(Boolean);
+}
+
+const directMode = Boolean(BUILD_CMD_RAW || SERVE_CMD_RAW);
+
+const BUILD_CMD = BUILD_CMD_RAW ? parseCmd(BUILD_CMD_RAW) : undefined;
+const SERVE_CMD = SERVE_CMD_RAW ? parseCmd(SERVE_CMD_RAW) : undefined;
+const TASK_CMD = parseCmd(TASK_CMD_RAW);
+const TEST_CMD = parseCmd(TEST_CMD_RAW);
+
+function spawnChild(cmd: string[], inherit = true): Deno.ChildProcess {
+  console.log(`> spawning: ${cmd.map((s) => (s.includes(" ") ? `"${s}"` : s)).join(" ")}`);
+  return new Deno.Command(cmd[0], {
+    args: cmd.slice(1),
+    stdout: inherit ? "inherit" : "piped",
+    stderr: inherit ? "inherit" : "piped",
+  }).spawn();
+}
+
+async function runCommandAndWait(cmd: string[]): Promise<Deno.CommandStatus> {
+  const child = spawnChild(cmd, true);
+  return await child.status;
+}
+
+async function isReady(port: number, path = "/"): Promise<boolean> {
   try {
-    const response = await fetch(`http://localhost:${port}`, {
-      method: "HEAD",
-    });
-    return response.ok;
+    const res = await fetch(`http://127.0.0.1:${port}${path}`, { method: "HEAD" });
+    return res.ok;
   } catch {
     return false;
   }
 }
 
-async function waitForServer(port: number, timeout: number): Promise<void> {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < timeout) {
-    if (await isServerReady(port)) {
-      console.log("✅ Fresh server is ready");
+async function waitForServer(port: number, timeoutMs: number, path = "/") {
+  const start = Date.now();
+  let attempt = 0;
+  while (Date.now() - start < timeoutMs) {
+    if (await isReady(port, path)) {
+      console.log(`✅ server ready on port ${port}`);
       return;
     }
-    await delay(1000);
-    console.log("⏳ Waiting for server...");
+    const wait = Math.min(200 * Math.pow(1.25, attempt), 2000);
+    await new Promise((r) => setTimeout(r, wait));
+    attempt++;
+    if (attempt % 5 === 0) console.log(`⏳ waiting for server (attempt ${attempt})...`);
   }
-
-  throw new Error(`Server did not start within ${timeout}ms`);
+  throw new Error(`Server not ready after ${timeoutMs}ms`);
 }
 
-// Global reference for cleanup
-let globalServerProcess: Deno.ChildProcess | null = null;
+let serverChild: Deno.ChildProcess | null = null;
+let cleaned = false;
 
-async function runTests(): Promise<void> {
-  console.log("🚀 Starting Fresh Scaffold test suite");
-
-  // Start the development server
-  console.log("📦 Starting Fresh production server...");
-  const serverProcess = new Deno.Command("deno", {
-    args: ["task", "serve"],
-    stdout: "piped",
-    stderr: "piped",
-  }).spawn();
-
-  // Store reference for signal handlers
-  globalServerProcess = serverProcess;
-
-  let testsPassed = false;
-
-  try {
-    // Wait for server to be ready
-    await waitForServer(FRESH_DEV_PORT, SERVER_TIMEOUT);
-
-    // Run the E2E tests
-    console.log("🧪 Running E2E tests...");
-    const testProcess = new Deno.Command("deno", {
-      args: ["task", "test:e2e"],
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-
-    const testResult = await testProcess.output();
-
-    if (testResult.success) {
-      console.log("✅ All tests passed!");
-      testsPassed = true;
-    } else {
-      console.log("❌ Some tests failed!");
-    }
-  } catch (error) {
-    console.error(
-      "❌ Error running tests:",
-      error instanceof Error ? error.message : String(error),
-    );
-  } finally {
-    // Robust cleanup of server process
-    await cleanupServer(serverProcess);
-    globalServerProcess = null;
-
-    // Exit with appropriate code
-    if (!testsPassed) {
-      Deno.exit(1);
-    }
+async function cleanup(exitCode = 1) {
+  if (cleaned) {
+    Deno.exit(exitCode);
   }
-}
+  cleaned = true;
 
-async function cleanupServer(serverProcess: Deno.ChildProcess): Promise<void> {
-  console.log("🧹 Cleaning up server process...");
-
-  try {
-    // First, try graceful termination
-    serverProcess.kill("SIGTERM");
-
-    // Wait up to 5 seconds for graceful shutdown
-    const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 5000);
-    });
-
-    const statusPromise = serverProcess.status.then(() => {
-      console.log("✅ Server terminated gracefully");
-    });
-
-    await Promise.race([statusPromise, timeoutPromise]);
-
-    // If process is still running, force kill it
+  if (serverChild) {
     try {
-      serverProcess.kill("SIGKILL");
-      await serverProcess.status;
-      console.log("🔨 Server force-killed");
-    } catch {
-      // Process already terminated
+      console.log(`🛑 Stopping server (pid=${serverChild.pid}) with SIGTERM...`);
+      try {
+        serverChild.kill("SIGTERM");
+      } catch {
+        // ignore if already exited
+      }
+
+      // wait up to 5s for graceful shutdown
+      await Promise.race([serverChild.status, new Promise((r) => setTimeout(r, 5000))]);
+
+      // if still running, force kill by pid
+      try {
+        if (serverChild.pid) {
+          // best-effort SIGKILL
+          Deno.kill(serverChild.pid, "SIGKILL");
+          // allow a tiny moment to let OS clean up
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      } catch {
+        // ignore
+      }
+
+      try {
+        // await final status if not yet resolved
+        await serverChild.status;
+      } catch {
+        // ignore
+      }
+      console.log("🧹 server cleanup done");
+    } catch (err) {
+      console.warn("⚠️ error during server cleanup:", err);
     }
-  } catch (error) {
-    console.warn(
-      "⚠️  Warning during server cleanup:",
-      error instanceof Error ? error.message : String(error),
-    );
   }
 
-  // Additional cleanup: kill any remaining deno processes on the port
+  Deno.exit(exitCode);
+}
+
+async function main() {
+  console.log("🧭 E2E runner starting");
+  console.log("Mode:", directMode ? "direct (build → serve)" : "task");
+
   try {
-    const killProcess = new Deno.Command("pkill", {
-      args: ["-f", "deno task serve"],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    await killProcess.output();
-    console.log("🧹 Cleaned up any remaining processes");
-  } catch {
-    // Ignore errors - pkill might not find any processes
+    if (directMode) {
+      // run build if provided
+      if (BUILD_CMD) {
+        console.log("📦 Running build:", BUILD_CMD.join(" "));
+        const res = await runCommandAndWait(BUILD_CMD);
+        if (!res.success) {
+          console.error("❌ Build failed:", res);
+          return cleanup(1);
+        }
+        console.log("✅ Build succeeded");
+      }
+
+      if (!SERVE_CMD) {
+        console.error("❌ SERVE_CMD not provided in direct mode");
+        return cleanup(1);
+      }
+
+      // start server (inherit logs)
+      serverChild = spawnChild(SERVE_CMD, true);
+    } else {
+      // task mode
+      serverChild = spawnChild(TASK_CMD, true);
+    }
+
+    console.log(`📌 server pid: ${serverChild.pid}`);
+
+    // install signal handlers (single cleanup call)
+    const sigHandler = () => {
+      console.log("\n✋ Received signal, cleaning up...");
+      cleanup(1);
+    };
+    Deno.addSignalListener("SIGINT", sigHandler);
+    Deno.addSignalListener("SIGTERM", sigHandler);
+
+    // wait for server readiness
+    try {
+      await waitForServer(FRESH_DEV_PORT, SERVER_TIMEOUT_MS, HEALTH_PATH);
+    } catch (err) {
+      console.error("❌ Server did not become ready:", err instanceof Error ? err.message : err);
+      return cleanup(1);
+    }
+
+    // run tests
+    console.log("🧪 Running tests:", TEST_CMD.join(" "));
+    const testChild = spawnChild(TEST_CMD, true);
+    const testStatus = await testChild.status;
+
+    if (testStatus.success) {
+      console.log("✅ Tests passed");
+      return cleanup(0);
+    } else {
+      console.error("❌ Tests failed");
+      return cleanup(1);
+    }
+  } catch (err) {
+    console.error("❌ Unexpected error:", err);
+    return cleanup(1);
   }
 }
 
 if (import.meta.main) {
-  // Set up signal handlers for cleanup
-  const cleanup = async () => {
-    if (globalServerProcess) {
-      console.log("\n🛑 Received interrupt signal, cleaning up...");
-      await cleanupServer(globalServerProcess);
-    }
-    Deno.exit(1);
-  };
-
-  // Handle Ctrl+C and other termination signals
-  Deno.addSignalListener("SIGINT", cleanup);
-  Deno.addSignalListener("SIGTERM", cleanup);
-
-  try {
-    await runTests();
-  } catch (error) {
-    console.error("❌ Unexpected error:", error);
-    if (globalServerProcess) {
-      await cleanupServer(globalServerProcess);
-    }
-    Deno.exit(1);
-  }
+  main();
 }
