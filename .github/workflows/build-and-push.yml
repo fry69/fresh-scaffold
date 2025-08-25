@@ -71,9 +71,11 @@ jobs:
       - name: Generate build string
         id: buildinfo
         run: |
-          echo "build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "build_string=${{ steps.buildinfo.outputs.build_time }}-${{ steps.buildinfo.outputs.short_sha }}" >> $GITHUB_OUTPUT
+          build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+          short_sha=$(git rev-parse --short HEAD)
+          echo "build_time=${build_time}" >> $GITHUB_OUTPUT
+          echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
+          echo "build_string=${build_time}-${short_sha}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (multi-arch)
         id: build-and-push
@@ -109,10 +111,9 @@ jobs:
           TAGS="${{ steps.meta.outputs.tags }}"
           DIGEST="${{ steps.build-and-push.outputs.digest }}"
           BUILD_TIME="${{ steps.buildinfo.outputs.build_time }}"
-          BUILD_STRING="${{ steps.buildinfo.outputs.build_string }}"
           GIT_REVISION="${{ steps.git.outputs.revision }}"
+          BUILD_STRING="${{ steps.buildinfo.outputs.build_string }}"
           LABELS="${{ steps.meta.outputs.labels }}"
-          ATTESTATION=$(cat ${{ steps.attest.outputs.bundle-path }})
 
           # Create the markdown content once
           cat > build-summary.md <<EOF
@@ -125,17 +126,12 @@ jobs:
           | **Floating tag (alias)** | \`${IMAGE}:latest\` |
           | **Digest** | \`${DIGEST}\` |
           | **Built at (UTC)** | \`${BUILD_TIME}\` |
-          | **Build string** | \`${BUILD_STRING}\` |
           | **Commit** | \`${GIT_REVISION}\` |
+          | **Build string** | \`${BUILD_STRING}\` |
 
           ### Labels (generated)
           \`\`\`
           ${LABELS}
-          \`\`\`
-
-          ### Attestation (in-toto SLSA provenance)
-          \`\`\`json
-          ${ATTESTATION}
           \`\`\`
           EOF
 
