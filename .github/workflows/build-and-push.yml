@@ -111,9 +111,8 @@ jobs:
           LABELS="${{ steps.meta.outputs.labels }}"
           ATTESTATION="${{ steps.attest.outputs.bundle-path || 'pushed (see attestation step)' }}"
 
-          # Write a friendly markdown summary to the GitHub Actions job summary
-          # ($GITHUB_STEP_SUMMARY is provided by the runner; markdown here will render in Actions UI)
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # Create the markdown content once
+          cat > build-summary.md <<EOF
           ## :package: Container build summary
 
           | Property | Value |
@@ -135,9 +134,12 @@ jobs:
           - Use the digest (\`${DIGEST}\`) to pin deployments.
           EOF
 
+          # Copy the same content to the GitHub step summary
+          cat build-summary.md >> $GITHUB_STEP_SUMMARY
+
       - name: Upload summary as artifact (optional)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: container-build-summary
-          path: ${{ env.GITHUB_STEP_SUMMARY }}
+          path: build-summary.md
