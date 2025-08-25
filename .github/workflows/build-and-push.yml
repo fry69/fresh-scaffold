@@ -109,27 +109,30 @@ jobs:
           BUILD_TIME="${{ steps.buildinfo.outputs.build_time }}"
           SHORT_SHA="${{ steps.buildinfo.outputs.short_sha }}"
           LABELS="${{ steps.meta.outputs.labels }}"
+          ATTESTATION="${{ steps.attest.outputs.bundle-path || 'pushed (see attestation step)' }}"
 
           # Write a friendly markdown summary to the GitHub Actions job summary
           # ($GITHUB_STEP_SUMMARY is provided by the runner; markdown here will render in Actions UI)
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           ## :package: Container build summary
 
-          **Image:** \`${IMAGE}\`
-          **Tags pushed:** ${TAGS}
-          **Floating tag (alias):** \`${IMAGE}:latest\`
-          **Digest:** \`${DIGEST}\`
-          **Built at (UTC):** ${BUILD_TIME}
-          **Commit:** \`${SHORT_SHA}\`
+          | Property | Value |
+          |----------|-------|
+          | **Image** | \`${IMAGE}\` |
+          | **Tags pushed** | ${TAGS} |
+          | **Floating tag (alias)** | \`${IMAGE}:latest\` |
+          | **Digest** | \`${DIGEST}\` |
+          | **Built at (UTC)** | ${BUILD_TIME} |
+          | **Commit** | \`${SHORT_SHA}\` |
 
           ### Labels (generated)
-          \`\`\`json
+          \`\`\`
           ${LABELS}
           \`\`\`
 
           ### Notes
-          - Attestation: ${ATTESTION:-pushed (see attestation step)}
-          - Use the digest (\`ghcr.io/owner/repo@sha256:...\`) to pin deployments.
+          - Attestation: \`${ATTESTATION}\`
+          - Use the digest (\`${DIGEST}\`) to pin deployments.
           EOF
 
       - name: Upload summary as artifact (optional)
@@ -137,4 +140,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: container-build-summary
-          path: $GITHUB_STEP_SUMMARY
+          path: ${{ env.GITHUB_STEP_SUMMARY }}
