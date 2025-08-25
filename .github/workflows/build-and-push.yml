@@ -65,13 +65,15 @@ jobs:
 
       - name: Get git revision
         id: git
-        run: echo "revision=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          echo "revision=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Generate build string
         id: buildinfo
         run: |
           echo "build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "build_string=${{ steps.buildinfo.outputs.build_time }}-${{ steps.buildinfo.outputs.short_sha }}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (multi-arch)
         id: build-and-push
@@ -86,7 +88,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_REVISION=${{ steps.git.outputs.revision }}
-            BUILD_STRING=${{ steps.buildinfo.outputs.build_time }}-${{ steps.buildinfo.outputs.short_sha }}
+            BUILD_STRING=${{ steps.buildinfo.outputs.build_string }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -107,9 +109,10 @@ jobs:
           TAGS="${{ steps.meta.outputs.tags }}"
           DIGEST="${{ steps.build-and-push.outputs.digest }}"
           BUILD_TIME="${{ steps.buildinfo.outputs.build_time }}"
-          SHORT_SHA="${{ steps.buildinfo.outputs.short_sha }}"
+          BUILD_STRING="${{ steps.buildinfo.outputs.build_string }}"
+          GIT_REVISION="${{ steps.git.outputs.revision }}"
           LABELS="${{ steps.meta.outputs.labels }}"
-          ATTESTATION="${{ steps.attest.outputs.bundle-path || 'pushed (see attestation step)' }}"
+          ATTESTATION=$(cat ${{ steps.attest.outputs.bundle-path }})
 
           # Create the markdown content once
           cat > build-summary.md <<EOF
@@ -118,20 +121,22 @@ jobs:
           | Property | Value |
           |----------|-------|
           | **Image** | \`${IMAGE}\` |
-          | **Tags pushed** | ${TAGS} |
+          | **Tags pushed** | \`${TAGS}\` |
           | **Floating tag (alias)** | \`${IMAGE}:latest\` |
           | **Digest** | \`${DIGEST}\` |
-          | **Built at (UTC)** | ${BUILD_TIME} |
-          | **Commit** | \`${SHORT_SHA}\` |
+          | **Built at (UTC)** | \`${BUILD_TIME}\` |
+          | **Build string** | \`${BUILD_STRING}\` |
+          | **Commit** | \`${GIT_REVISION}\` |
 
           ### Labels (generated)
           \`\`\`
           ${LABELS}
           \`\`\`
 
-          ### Notes
-          - Attestation: \`${ATTESTATION}\`
-          - Use the digest (\`${DIGEST}\`) to pin deployments.
+          ### Attestation (in-toto SLSA provenance)
+          \`\`\`json
+          ${ATTESTATION}
+          \`\`\`
           EOF
 
           # Copy the same content to the GitHub step summary
