@@ -53,9 +53,9 @@ jobs:
         run: |
           build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
           short_sha=$(git rev-parse --short HEAD)
-          echo "build_time=${build_time}" >> $GITHUB_OUTPUT
-          echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
-          echo "build_string=${build_time}-${short_sha}" >> $GITHUB_OUTPUT
+          echo "build-time=${build_time}" >> $GITHUB_OUTPUT
+          echo "short-sha=${short_sha}" >> $GITHUB_OUTPUT
+          echo "build-string=${build_time}-${short_sha}" >> $GITHUB_OUTPUT
 
       # Always build for testing (don't push unless it's a tag)
       - name: Build Docker image
@@ -67,7 +67,7 @@ jobs:
           tags: test-build:latest
           build-args: |
             GIT_REVISION=${{ steps.git.outputs.revision }}
-            BUILD_STRING=${{ steps.buildinfo.outputs.build_string }}
+            BUILD_STRING=${{ steps.buildinfo.outputs.build-string }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -121,9 +121,9 @@ jobs:
         run: |
           build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
           short_sha=$(git rev-parse --short HEAD)
-          echo "build_time=${build_time}" >> $GITHUB_OUTPUT
-          echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
-          echo "build_string=${build_time}-${short_sha}" >> $GITHUB_OUTPUT
+          echo "build-time=${build_time}" >> $GITHUB_OUTPUT
+          echo "short-sha=${short_sha}" >> $GITHUB_OUTPUT
+          echo "build-string=${build_time}-${short_sha}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (multi-arch)
         id: build-and-push
@@ -138,14 +138,14 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_REVISION=${{ steps.git.outputs.revision }}
-            BUILD_STRING=${{ steps.buildinfo.outputs.build_string }}
+            BUILD_STRING=${{ steps.buildinfo.outputs.build-string }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
       - name: Generate build attestation (provenance)
         id: attest
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build-and-push.outputs.digest }}
@@ -158,9 +158,10 @@ jobs:
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           TAGS="${{ steps.meta.outputs.tags }}"
           DIGEST="${{ steps.build-and-push.outputs.digest }}"
-          BUILD_TIME="${{ steps.buildinfo.outputs.build_time }}"
+          BUILD_TIME="${{ steps.buildinfo.outputs.build-time }}"
           GIT_REVISION="${{ steps.git.outputs.revision }}"
-          BUILD_STRING="${{ steps.buildinfo.outputs.build_string }}"
+          BUILD_STRING="${{ steps.buildinfo.outputs.build-string }}"
+          ATTESTATION="${{ steps.attest.outputs.attestation-id }}"
           LABELS="${{ steps.meta.outputs.labels }}"
 
           # Create the markdown content once
@@ -171,11 +172,11 @@ jobs:
           |----------|-------|
           | **Image** | \`${IMAGE}\` |
           | **Tags pushed** | \`${TAGS}\` |
-          | **Floating tag (alias)** | \`${IMAGE}:latest\` |
           | **Digest** | \`${DIGEST}\` |
           | **Built at (UTC)** | \`${BUILD_TIME}\` |
           | **Commit** | \`${GIT_REVISION}\` |
           | **Build string** | \`${BUILD_STRING}\` |
+          | **Attestation ID** | \`${ATTESTATION}\` |
 
           ### Labels (generated)
           \`\`\`
