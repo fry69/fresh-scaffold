@@ -63,7 +63,7 @@ jobs:
         with:
           context: .
           file: ${{ env.CONTAINERFILE }}
-          push: false  # Never push from this job
+          push: false # Never push from this job
           tags: test-build:latest
           build-args: |
             GIT_REVISION=${{ steps.git.outputs.revision }}
